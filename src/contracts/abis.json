@@ -1,0 +1,31 @@
+{
+  "TxRateToken": [
+    "function balanceOf(address owner) view returns (uint256)",
+    "function transfer(address to, uint256 amount) returns (bool)",
+    "function approve(address spender, uint256 amount) returns (bool)",
+    "function allowance(address owner, address spender) view returns (uint256)",
+    "function getOffChainBalance(address user) view returns (uint256)",
+    "function withdrawOffChain(uint256 amount)",
+    "function depositOffChain(uint256 amount)",
+    "function getReferralInfo(address user) view returns (address, uint256, uint256)",
+    "function setReferrer(address user, address referrer)"
+  ],
+  "TxRateLending": [
+    "function supply(address token, uint256 amount)",
+    "function withdraw(address token, uint256 amount)",
+    "function borrow(address token, uint256 amount)",
+    "function repay(address token, uint256 amount)",
+    "function getUserPosition(address user, address token) view returns (tuple(uint256 supplied, uint256 borrowed, uint256 lastUpdateTime, uint256 accruedInterest))",
+    "function getPoolInfo(address token) view returns (tuple(address token, uint256 totalSupply, uint256 totalBorrow, uint256 supplyRate, uint256 borrowRate, uint256 collateralFactor, bool isActive))",
+    "function getSupportedTokens() view returns (address[])"
+  ],
+  "ERC20": [
+    "function balanceOf(address owner) view returns (uint256)",
+    "function transfer(address to, uint256 amount) returns (bool)",
+    "function approve(address spender, uint256 amount) returns (bool)",
+    "function allowance(address owner, address spender) view returns (uint256)",
+    "function decimals() view returns (uint8)",
+    "function symbol() view returns (string)",
+    "function name() view returns (string)"
+  ]
+}
