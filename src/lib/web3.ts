@@ -2,27 +2,61 @@ import { ethers } from 'ethers';
 import contractAddresses from '../contracts/addresses.json';
 import contractABIs from '../contracts/abis.json';
 
+declare global {
+  interface Window {
+    ethereum?: any;
+    BinanceChain?: any;
+    okxwallet?: any;
+    bitkeep?: any;
+    trustWallet?: any;
+  }
+}
+
 export class Web3Service {
-  private provider: ethers.providers.Web3Provider | null = null;
+  private provider: ethers.BrowserProvider | null = null;
   private signer: ethers.Signer | null = null;
   private contracts: { [key: string]: ethers.Contract } = {};
+  private currentWallet: string | null = null;
 
-  async connectWallet(): Promise<string> {
-    if (!window.ethereum) {
-      throw new Error('No wallet found. Please install MetaMask or another Web3 wallet.');
+  async connectWallet(walletType: string = 'metamask'): Promise<string> {
+    let ethereum;
+    
+    switch (walletType) {
+      case 'metamask':
+        ethereum = window.ethereum;
+        break;
+      case 'binance':
+        ethereum = window.BinanceChain;
+        break;
+      case 'okx':
+        ethereum = window.okxwallet;
+        break;
+      case 'bitget':
+        ethereum = window.bitkeep?.ethereum;
+        break;
+      case 'trustwallet':
+        ethereum = window.trustWallet;
+        break;
+      default:
+        ethereum = window.ethereum;
+    }
+
+    if (!ethereum) {
+      throw new Error(`${walletType} wallet not found. Please install the wallet extension.`);
     }
 
     try {
       // Request account access
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      await ethereum.request({ method: 'eth_requestAccounts' });
       
-      this.provider = new ethers.providers.Web3Provider(window.ethereum);
+      this.provider = new ethers.BrowserProvider(ethereum);
       this.signer = this.provider.getSigner();
+      this.currentWallet = walletType;
       
       const address = await this.signer.getAddress();
       
       // Switch to BSC Testnet if not already
-      await this.switchToBSCTestnet();
+      await this.switchToBSCTestnet(ethereum);
       
       // Initialize contracts
       this.initializeContracts();
@@ -34,11 +68,11 @@ export class Web3Service {
     }
   }
 
-  async switchToBSCTestnet() {
-    if (!window.ethereum) return;
+  async switchToBSCTestnet(ethereum: any) {
+    if (!ethereum) return;
 
     try {
-      await window.ethereum.request({
+      await ethereum.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: '0x61' }], // BSC Testnet
       });
@@ -46,7 +80,7 @@ export class Web3Service {
       // This error code indicates that the chain has not been added to MetaMask
       if (switchError.code === 4902) {
         try {
-          await window.ethereum.request({
+          await ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [
               {
@@ -75,6 +109,8 @@ export class Web3Service {
   private initializeContracts() {
     if (!this.signer) return;
 
+    console.log('Initializing contracts with addresses:', contractAddresses);
+
     this.contracts.txrToken = new ethers.Contract(
       contractAddresses.txrToken,
       contractABIs.TxRateToken,
@@ -98,136 +134,221 @@ export class Web3Service {
     });
 
     // WBNB contract
-    this.contracts.wbnb = new ethers.Contract(
-      contractAddresses.wbnb,
-      contractABIs.ERC20,
-      this.signer
-    );
+    if (contractAddresses.wbnb) {
+      this.contracts.wbnb = new ethers.Contract(
+        contractAddresses.wbnb,
+        contractABIs.ERC20,
+        this.signer
+      );
+    }
   }
 
   // TxR Token functions
   async getTxRBalance(address: string): Promise<string> {
     if (!this.contracts.txrToken) throw new Error('Contract not initialized');
-    const balance = await this.contracts.txrToken.balanceOf(address);
-    return ethers.utils.formatEther(balance);
+    try {
+      const balance = await this.contracts.txrToken.balanceOf(address);
+      return ethers.formatEther(balance);
+    } catch (error) {
+      console.error('Error getting TxR balance:', error);
+      return '0';
+    }
   }
 
   async getOffChainBalance(address: string): Promise<string> {
     if (!this.contracts.txrToken) throw new Error('Contract not initialized');
-    const balance = await this.contracts.txrToken.getOffChainBalance(address);
-    return ethers.utils.formatEther(balance);
+    try {
+      const balance = await this.contracts.txrToken.getOffChainBalance(address);
+      return ethers.formatEther(balance);
+    } catch (error) {
+      console.error('Error getting off-chain balance:', error);
+      return '0';
+    }
   }
 
   async withdrawOffChain(amount: string): Promise<string> {
     if (!this.contracts.txrToken) throw new Error('Contract not initialized');
-    const tx = await this.contracts.txrToken.withdrawOffChain(
-      ethers.utils.parseEther(amount)
-    );
-    await tx.wait();
-    return tx.hash;
+    try {
+      const tx = await this.contracts.txrToken.withdrawOffChain(
+        ethers.parseEther(amount)
+      );
+      const receipt = await tx.wait();
+      return receipt.hash;
+    } catch (error) {
+      console.error('Error withdrawing off-chain:', error);
+      throw error;
+    }
   }
 
   // Lending functions
   async supply(tokenAddress: string, amount: string): Promise<string> {
     if (!this.contracts.lending) throw new Error('Contract not initialized');
     
-    // First approve the lending contract to spend tokens
-    const tokenContract = new ethers.Contract(tokenAddress, contractABIs.ERC20, this.signer);
-    const approveTx = await tokenContract.approve(
-      contractAddresses.lending,
-      ethers.utils.parseEther(amount)
-    );
-    await approveTx.wait();
+    try {
+      // First approve the lending contract to spend tokens
+      const tokenContract = new ethers.Contract(tokenAddress, contractABIs.ERC20, this.signer);
+      const approveTx = await tokenContract.approve(
+        contractAddresses.lending,
+        ethers.parseEther(amount)
+      );
+      await approveTx.wait();
 
-    // Then supply to the pool
-    const tx = await this.contracts.lending.supply(
-      tokenAddress,
-      ethers.utils.parseEther(amount)
-    );
-    await tx.wait();
-    return tx.hash;
+      // Then supply to the pool
+      const tx = await this.contracts.lending.supply(
+        tokenAddress,
+        ethers.parseEther(amount)
+      );
+      const receipt = await tx.wait();
+      return receipt.hash;
+    } catch (error) {
+      console.error('Error supplying tokens:', error);
+      throw error;
+    }
   }
 
   async withdraw(tokenAddress: string, amount: string): Promise<string> {
     if (!this.contracts.lending) throw new Error('Contract not initialized');
-    const tx = await this.contracts.lending.withdraw(
-      tokenAddress,
-      ethers.utils.parseEther(amount)
-    );
-    await tx.wait();
-    return tx.hash;
+    try {
+      const tx = await this.contracts.lending.withdraw(
+        tokenAddress,
+        ethers.parseEther(amount)
+      );
+      const receipt = await tx.wait();
+      return receipt.hash;
+    } catch (error) {
+      console.error('Error withdrawing tokens:', error);
+      throw error;
+    }
   }
 
   async borrow(tokenAddress: string, amount: string): Promise<string> {
     if (!this.contracts.lending) throw new Error('Contract not initialized');
-    const tx = await this.contracts.lending.borrow(
-      tokenAddress,
-      ethers.utils.parseEther(amount)
-    );
-    await tx.wait();
-    return tx.hash;
+    try {
+      const tx = await this.contracts.lending.borrow(
+        tokenAddress,
+        ethers.parseEther(amount)
+      );
+      const receipt = await tx.wait();
+      return receipt.hash;
+    } catch (error) {
+      console.error('Error borrowing tokens:', error);
+      throw error;
+    }
   }
 
   async repay(tokenAddress: string, amount: string): Promise<string> {
     if (!this.contracts.lending) throw new Error('Contract not initialized');
     
-    // First approve the lending contract to spend tokens
-    const tokenContract = new ethers.Contract(tokenAddress, contractABIs.ERC20, this.signer);
-    const approveTx = await tokenContract.approve(
-      contractAddresses.lending,
-      ethers.utils.parseEther(amount)
-    );
-    await approveTx.wait();
+    try {
+      // First approve the lending contract to spend tokens
+      const tokenContract = new ethers.Contract(tokenAddress, contractABIs.ERC20, this.signer);
+      const approveTx = await tokenContract.approve(
+        contractAddresses.lending,
+        ethers.parseEther(amount)
+      );
+      await approveTx.wait();
 
-    // Then repay the loan
-    const tx = await this.contracts.lending.repay(
-      tokenAddress,
-      ethers.utils.parseEther(amount)
-    );
-    await tx.wait();
-    return tx.hash;
+      // Then repay the loan
+      const tx = await this.contracts.lending.repay(
+        tokenAddress,
+        ethers.parseEther(amount)
+      );
+      const receipt = await tx.wait();
+      return receipt.hash;
+    } catch (error) {
+      console.error('Error repaying tokens:', error);
+      throw error;
+    }
   }
 
   async getUserPosition(userAddress: string, tokenAddress: string) {
     if (!this.contracts.lending) throw new Error('Contract not initialized');
-    const position = await this.contracts.lending.getUserPosition(userAddress, tokenAddress);
-    return {
-      supplied: ethers.utils.formatEther(position.supplied),
-      borrowed: ethers.utils.formatEther(position.borrowed),
-      lastUpdateTime: position.lastUpdateTime.toNumber(),
-      accruedInterest: ethers.utils.formatEther(position.accruedInterest)
-    };
+    try {
+      const position = await this.contracts.lending.getUserPosition(userAddress, tokenAddress);
+      return {
+        supplied: ethers.formatEther(position.supplied),
+        borrowed: ethers.formatEther(position.borrowed),
+        lastUpdateTime: Number(position.lastUpdateTime),
+        accruedInterest: ethers.formatEther(position.accruedInterest)
+      };
+    } catch (error) {
+      console.error('Error getting user position:', error);
+      return {
+        supplied: '0',
+        borrowed: '0',
+        lastUpdateTime: 0,
+        accruedInterest: '0'
+      };
+    }
   }
 
   async getPoolInfo(tokenAddress: string) {
     if (!this.contracts.lending) throw new Error('Contract not initialized');
-    const pool = await this.contracts.lending.getPoolInfo(tokenAddress);
-    return {
-      token: pool.token,
-      totalSupply: ethers.utils.formatEther(pool.totalSupply),
-      totalBorrow: ethers.utils.formatEther(pool.totalBorrow),
-      supplyRate: pool.supplyRate.toNumber() / 100, // Convert from basis points
-      borrowRate: pool.borrowRate.toNumber() / 100,
-      collateralFactor: pool.collateralFactor.toNumber() / 100,
-      isActive: pool.isActive
-    };
+    try {
+      const pool = await this.contracts.lending.getPoolInfo(tokenAddress);
+      return {
+        token: pool.token,
+        totalSupply: ethers.formatEther(pool.totalSupply),
+        totalBorrow: ethers.formatEther(pool.totalBorrow),
+        supplyRate: Number(pool.supplyRate) / 100, // Convert from basis points
+        borrowRate: Number(pool.borrowRate) / 100,
+        collateralFactor: Number(pool.collateralFactor) / 100,
+        isActive: pool.isActive
+      };
+    } catch (error) {
+      console.error('Error getting pool info:', error);
+      throw error;
+    }
   }
 
   async getTokenBalance(tokenAddress: string, userAddress: string): Promise<string> {
-    const tokenContract = new ethers.Contract(tokenAddress, contractABIs.ERC20, this.provider);
-    const balance = await tokenContract.balanceOf(userAddress);
-    return ethers.utils.formatEther(balance);
+    try {
+      const tokenContract = new ethers.Contract(tokenAddress, contractABIs.ERC20, this.provider);
+      const balance = await tokenContract.balanceOf(userAddress);
+      return ethers.formatEther(balance);
+    } catch (error) {
+      console.error('Error getting token balance:', error);
+      return '0';
+    }
   }
 
   // Referral functions
   async getReferralInfo(address: string) {
     if (!this.contracts.txrToken) throw new Error('Contract not initialized');
-    const [referrer, earnings, totalRefs] = await this.contracts.txrToken.getReferralInfo(address);
-    return {
-      referrer,
-      earnings: ethers.utils.formatEther(earnings),
-      totalReferrals: totalRefs.toNumber()
-    };
+    try {
+      const [referrer, earnings, totalRefs] = await this.contracts.txrToken.getReferralInfo(address);
+      return {
+        referrer,
+        earnings: ethers.formatEther(earnings),
+        totalReferrals: Number(totalRefs)
+      };
+    } catch (error) {
+      console.error('Error getting referral info:', error);
+      return {
+        referrer: '0x0000000000000000000000000000000000000000',
+        earnings: '0',
+        totalReferrals: 0
+      };
+    }
+  }
+
+  async getBNBBalance(address: string): Promise<string> {
+    if (!this.provider) throw new Error('Provider not initialized');
+    try {
+      const balance = await this.provider.getBalance(address);
+      return ethers.formatEther(balance);
+    } catch (error) {
+      console.error('Error getting BNB balance:', error);
+      return '0';
+    }
+  }
+
+  getCurrentWallet(): string | null {
+    return this.currentWallet;
+  }
+
+  isConnected(): boolean {
+    return this.provider !== null && this.signer !== null;
   }
 
   getContractAddresses() {
@@ -236,10 +357,3 @@ export class Web3Service {
 }
 
 export const web3Service = new Web3Service();
-
-// Extend Window interface for TypeScript
-declare global {
-  interface Window {
-    ethereum?: any;
-  }
-}
