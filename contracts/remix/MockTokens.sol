@@ -9,14 +9,14 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * @dev Mock USDT token untuk testing
  */
 contract MockUSDT is ERC20, Ownable {
-    constructor() ERC20("Mock USDT", "USDT") {
+    constructor() ERC20("Mock USDT", "USDT") Ownable(msg.sender) {
         _mint(msg.sender, 1000000 * 10**18); // 1 juta USDT
     }
-    
-    function mint(address to, uint256 amount) external {
+
+    function mint(address to, uint256 amount) external onlyOwner {
         _mint(to, amount);
     }
-    
+
     function decimals() public view virtual override returns (uint8) {
         return 18;
     }
@@ -27,14 +27,14 @@ contract MockUSDT is ERC20, Ownable {
  * @dev Mock BTCB token untuk testing
  */
 contract MockBTCB is ERC20, Ownable {
-    constructor() ERC20("Mock BTCB", "BTCB") {
+    constructor() ERC20("Mock BTCB", "BTCB") Ownable(msg.sender) {
         _mint(msg.sender, 10000 * 10**18); // 10 ribu BTCB
     }
-    
-    function mint(address to, uint256 amount) external {
+
+    function mint(address to, uint256 amount) external onlyOwner {
         _mint(to, amount);
     }
-    
+
     function decimals() public view virtual override returns (uint8) {
         return 18;
     }
@@ -45,14 +45,14 @@ contract MockBTCB is ERC20, Ownable {
  * @dev Mock ETH token untuk testing
  */
 contract MockETH is ERC20, Ownable {
-    constructor() ERC20("Mock ETH", "ETH") {
+    constructor() ERC20("Mock ETH", "ETH") Ownable(msg.sender) {
         _mint(msg.sender, 100000 * 10**18); // 100 ribu ETH
     }
-    
-    function mint(address to, uint256 amount) external {
+
+    function mint(address to, uint256 amount) external onlyOwner {
         _mint(to, amount);
     }
-    
+
     function decimals() public view virtual override returns (uint8) {
         return 18;
     }
