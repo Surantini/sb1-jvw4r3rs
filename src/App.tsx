@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Wallet, TrendingUp, Users, ArrowUpRight, ArrowDownLeft, Copy, ExternalLink, Shield, Zap } from 'lucide-react';
 import WalletConnection from './components/WalletConnection';
+import { useWeb3 } from './hooks/useWeb3';
 import Dashboard from './components/Dashboard';
 import LendingPools from './components/LendingPools';
 import BorrowingPools from './components/BorrowingPools';
@@ -9,9 +10,19 @@ import TransactionHistory from './components/TransactionHistory';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const {
+    isConnected,
+    address,
+    txrBalance,
+    offChainBalance,
+    bnbBalance,
+    loading,
+    error,
+    connectWallet,
+    disconnectWallet
+  } = useWeb3();
+
   const [connectedWallet, setConnectedWallet] = useState<string | null>(null);
-  const [walletAddress, setWalletAddress] = useState<string>('');
-  const [txrBalance, setTxrBalance] = useState(1250.75);
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: TrendingUp },
@@ -24,17 +35,17 @@ function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard txrBalance={txrBalance} />;
+        return <Dashboard txrBalance={parseFloat(offChainBalance)} />;
       case 'lending':
-        return <LendingPools />;
+        return <LendingPools userAddress={address} />;
       case 'borrowing':
-        return <BorrowingPools />;
+        return <BorrowingPools userAddress={address} />;
       case 'referral':
-        return <ReferralSystem />;
+        return <ReferralSystem userAddress={address} />;
       case 'history':
-        return <TransactionHistory />;
+        return <TransactionHistory userAddress={address} />;
       default:
-        return <Dashboard txrBalance={txrBalance} />;
+        return <Dashboard txrBalance={parseFloat(offChainBalance)} />;
     }
   };
 
@@ -57,25 +68,31 @@ function App() {
             </div>
 
             <div className="flex items-center space-x-4">
-              {connectedWallet && (
-                <div className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/20">
-                  <div className="text-sm text-gray-300">TxR Balance</div>
-                  <div className="text-lg font-bold text-white">{txrBalance.toLocaleString()}</div>
+              {isConnected && (
+                <div className="flex items-center space-x-3">
+                  <div className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/20">
+                    <div className="text-sm text-gray-300">BNB Balance</div>
+                    <div className="text-lg font-bold text-white">{parseFloat(bnbBalance).toFixed(4)}</div>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/20">
+                    <div className="text-sm text-gray-300">TxR Balance</div>
+                    <div className="text-lg font-bold text-white">{parseFloat(offChainBalance).toFixed(2)}</div>
+                  </div>
                 </div>
               )}
               
               <WalletConnection 
                 connectedWallet={connectedWallet}
                 setConnectedWallet={setConnectedWallet}
-                walletAddress={walletAddress}
-                setWalletAddress={setWalletAddress}
+                walletAddress={address}
+                setWalletAddress={() => {}} // Not needed anymore
               />
             </div>
           </div>
         </div>
       </header>
 
-      {!connectedWallet ? (
+      {!isConnected ? (
         /* Landing Page */
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4">
           <div className="text-center max-w-4xl">
@@ -115,8 +132,8 @@ function App() {
             <WalletConnection 
               connectedWallet={connectedWallet}
               setConnectedWallet={setConnectedWallet}
-              walletAddress={walletAddress}
-              setWalletAddress={setWalletAddress}
+              walletAddress={address}
+              setWalletAddress={() => {}}
             />
           </div>
         </div>
@@ -146,6 +163,25 @@ function App() {
 
           {/* Content */}
           {renderContent()}
+        </div>
+      )}
+
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+            <div className="flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-400"></div>
+              <span className="text-white">Connecting to wallet...</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Toast */}
+      {error && (
+        <div className="fixed top-4 right-4 bg-red-500/90 backdrop-blur-sm text-white px-6 py-3 rounded-lg border border-red-500/20 z-50">
+          <p className="text-sm">{error}</p>
         </div>
       )}
     </div>

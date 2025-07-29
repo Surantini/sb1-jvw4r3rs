@@ -7,15 +7,16 @@ export const useWeb3 = () => {
   const [address, setAddress] = useState<string>('');
   const [txrBalance, setTxrBalance] = useState<string>('0');
   const [offChainBalance, setOffChainBalance] = useState<string>('0');
+  const [bnbBalance, setBnbBalance] = useState<string>('0');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
 
-  const connectWallet = async () => {
+  const connectWallet = async (walletType: string = 'metamask') => {
     try {
       setLoading(true);
       setError('');
       
-      const walletAddress = await web3Service.connectWallet();
+      const walletAddress = await web3Service.connectWallet(walletType);
       setAddress(walletAddress);
       setIsConnected(true);
       
@@ -38,17 +39,20 @@ export const useWeb3 = () => {
     setAddress('');
     setTxrBalance('0');
     setOffChainBalance('0');
+    setBnbBalance('0');
   };
 
   const loadBalances = async (walletAddress: string) => {
     try {
-      const [txrBal, offChainBal] = await Promise.all([
+      const [txrBal, offChainBal, bnbBal] = await Promise.all([
         web3Service.getTxRBalance(walletAddress),
-        web3Service.getOffChainBalance(walletAddress)
+        web3Service.getOffChainBalance(walletAddress),
+        web3Service.getBNBBalance(walletAddress)
       ]);
       
       setTxrBalance(txrBal);
       setOffChainBalance(offChainBal);
+      setBnbBalance(bnbBal);
     } catch (err) {
       console.error('Error loading balances:', err);
     }
@@ -147,7 +151,9 @@ export const useWeb3 = () => {
         try {
           const accounts = await window.ethereum.request({ method: 'eth_accounts' });
           if (accounts.length > 0) {
-            await connectWallet();
+            // Try to reconnect with the last used wallet
+            const lastWallet = localStorage.getItem('lastConnectedWallet') || 'metamask';
+            await connectWallet(lastWallet);
           }
         } catch (err) {
           console.error('Error checking wallet connection:', err);
@@ -158,11 +164,39 @@ export const useWeb3 = () => {
     checkConnection();
   }, []);
 
+  // Listen for account changes
+  useEffect(() => {
+    if (window.ethereum) {
+      const handleAccountsChanged = (accounts: string[]) => {
+        if (accounts.length === 0) {
+          disconnectWallet();
+        } else if (accounts[0] !== address) {
+          setAddress(accounts[0]);
+          loadBalances(accounts[0]);
+        }
+      };
+
+      const handleChainChanged = (chainId: string) => {
+        // Reload the page when chain changes
+        window.location.reload();
+      };
+
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      window.ethereum.on('chainChanged', handleChainChanged);
+
+      return () => {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        window.ethereum.removeListener('chainChanged', handleChainChanged);
+      };
+    }
+  }, [address]);
+
   return {
     isConnected,
     address,
     txrBalance,
     offChainBalance,
+    bnbBalance,
     loading,
     error,
     connectWallet,
