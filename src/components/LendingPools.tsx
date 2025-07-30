@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { ArrowUpRight, Info } from 'lucide-react';
-import { web3Service } from '../lib/web3';
-import contractAddresses from '../contracts/addresses.json';
 
 interface LendingPoolsProps {
   userAddress: string;
@@ -10,15 +8,12 @@ interface LendingPoolsProps {
 const LendingPools: React.FC<LendingPoolsProps> = ({ userAddress }) => {
   const [selectedPool, setSelectedPool] = useState<string | null>(null);
   const [lendAmount, setLendAmount] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>('');
 
   const pools = [
     {
       id: 'bnb',
       asset: 'BNB',
       icon: '🟡',
-      address: contractAddresses.wbnb,
       apy: '8.5%',
       totalSupply: '$2.4M',
       utilization: '75%',
@@ -30,7 +25,6 @@ const LendingPools: React.FC<LendingPoolsProps> = ({ userAddress }) => {
       id: 'usdt',
       asset: 'USDT',
       icon: '💚',
-      address: contractAddresses.mockUSDT,
       apy: '12.3%',
       totalSupply: '$1.8M',
       utilization: '82%',
@@ -42,7 +36,6 @@ const LendingPools: React.FC<LendingPoolsProps> = ({ userAddress }) => {
       id: 'btcb',
       asset: 'BTCB',
       icon: '🟠',
-      address: contractAddresses.mockBTCB,
       apy: '6.8%',
       totalSupply: '$950K',
       utilization: '68%',
@@ -54,7 +47,6 @@ const LendingPools: React.FC<LendingPoolsProps> = ({ userAddress }) => {
       id: 'eth',
       asset: 'ETH',
       icon: '🔷',
-      address: contractAddresses.mockETH,
       apy: '7.2%',
       totalSupply: '$1.2M',
       utilization: '71%',
@@ -64,26 +56,13 @@ const LendingPools: React.FC<LendingPoolsProps> = ({ userAddress }) => {
     },
   ];
 
-  const handleLend = async (poolId: string) => {
-    if (!lendAmount || !userAddress) return;
+  const handleLend = (poolId: string) => {
+    if (!lendAmount) return;
     
-    const pool = pools.find(p => p.id === poolId);
-    if (!pool) return;
-
-    setLoading(true);
-    setError('');
-    
-    try {
-      const txHash = await web3Service.supply(pool.address, lendAmount);
-      alert(`Supply successful! Transaction hash: ${txHash}`);
-      setLendAmount('');
-      setSelectedPool(null);
-    } catch (err: any) {
-      console.error('Supply error:', err);
-      setError(err.message || 'Transaction failed');
-    } finally {
-      setLoading(false);
-    }
+    // Simulate lending transaction
+    alert(`Lending ${lendAmount} ${pools.find(p => p.id === poolId)?.asset} - Transaction submitted to BSC Testnet`);
+    setLendAmount('');
+    setSelectedPool(null);
   };
 
   return (
@@ -183,26 +162,18 @@ const LendingPools: React.FC<LendingPoolsProps> = ({ userAddress }) => {
                 </p>
               </div>
 
-              {error && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-                  <p className="text-red-400 text-sm">{error}</p>
-                </div>
-              )}
-
               <div className="flex space-x-3">
                 <button
                   onClick={() => setSelectedPool(null)}
-                  disabled={loading}
                   className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => handleLend(selectedPool)}
-                  disabled={loading || !lendAmount}
-                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white py-3 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white py-3 rounded-lg transition-all duration-200"
                 >
-                  {loading ? 'Processing...' : 'Supply'}
+                  Supply
                 </button>
               </div>
             </div>

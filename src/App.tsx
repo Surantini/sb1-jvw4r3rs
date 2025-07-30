@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Wallet, TrendingUp, Users, ArrowUpRight, ArrowDownLeft, Copy, ExternalLink, Shield, Zap } from 'lucide-react';
 import WalletConnection from './components/WalletConnection';
-import { useWeb3 } from './hooks/useWeb3';
 import Dashboard from './components/Dashboard';
 import LendingPools from './components/LendingPools';
 import BorrowingPools from './components/BorrowingPools';
@@ -10,19 +9,12 @@ import TransactionHistory from './components/TransactionHistory';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const {
-    isConnected,
-    address,
-    txrBalance,
-    offChainBalance,
-    bnbBalance,
-    loading,
-    error,
-    connectWallet,
-    disconnectWallet
-  } = useWeb3();
-
   const [connectedWallet, setConnectedWallet] = useState<string | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string>('');
+  const [txrBalance, setTxrBalance] = useState<number>(0);
+  const [bnbBalance, setBnbBalance] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: TrendingUp },
@@ -35,19 +27,27 @@ function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard txrBalance={parseFloat(offChainBalance)} />;
+        return <Dashboard txrBalance={txrBalance} />;
       case 'lending':
-        return <LendingPools userAddress={address} />;
+        return <LendingPools userAddress={walletAddress} />;
       case 'borrowing':
-        return <BorrowingPools userAddress={address} />;
+        return <BorrowingPools />;
       case 'referral':
-        return <ReferralSystem userAddress={address} />;
+        return <ReferralSystem />;
       case 'history':
-        return <TransactionHistory userAddress={address} />;
+        return <TransactionHistory />;
       default:
-        return <Dashboard txrBalance={parseFloat(offChainBalance)} />;
+        return <Dashboard txrBalance={txrBalance} />;
     }
   };
+
+  // Clear error after 5 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(''), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
@@ -68,15 +68,15 @@ function App() {
             </div>
 
             <div className="flex items-center space-x-4">
-              {isConnected && (
+              {connectedWallet && (
                 <div className="flex items-center space-x-3">
                   <div className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/20">
                     <div className="text-sm text-gray-300">BNB Balance</div>
-                    <div className="text-lg font-bold text-white">{parseFloat(bnbBalance).toFixed(4)}</div>
+                    <div className="text-lg font-bold text-white">{bnbBalance.toFixed(4)}</div>
                   </div>
                   <div className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/20">
                     <div className="text-sm text-gray-300">TxR Balance</div>
-                    <div className="text-lg font-bold text-white">{parseFloat(offChainBalance).toFixed(2)}</div>
+                    <div className="text-lg font-bold text-white">{txrBalance.toFixed(2)}</div>
                   </div>
                 </div>
               )}
@@ -84,15 +84,15 @@ function App() {
               <WalletConnection 
                 connectedWallet={connectedWallet}
                 setConnectedWallet={setConnectedWallet}
-                walletAddress={address}
-                setWalletAddress={() => {}} // Not needed anymore
+                walletAddress={walletAddress}
+                setWalletAddress={setWalletAddress}
               />
             </div>
           </div>
         </div>
       </header>
 
-      {!isConnected ? (
+      {!connectedWallet ? (
         /* Landing Page */
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4">
           <div className="text-center max-w-4xl">
@@ -132,8 +132,8 @@ function App() {
             <WalletConnection 
               connectedWallet={connectedWallet}
               setConnectedWallet={setConnectedWallet}
-              walletAddress={address}
-              setWalletAddress={() => {}}
+              walletAddress={walletAddress}
+              setWalletAddress={setWalletAddress}
             />
           </div>
         </div>
@@ -172,7 +172,7 @@ function App() {
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
             <div className="flex items-center space-x-3">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-400"></div>
-              <span className="text-white">Connecting to wallet...</span>
+              <span className="text-white">Processing...</span>
             </div>
           </div>
         </div>

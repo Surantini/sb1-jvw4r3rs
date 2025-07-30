@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Wallet, ChevronDown, X } from 'lucide-react';
-import { web3Service } from '../lib/web3';
 
 interface WalletConnectionProps {
   connectedWallet: string | null;
@@ -35,10 +34,53 @@ const WalletConnection: React.FC<WalletConnectionProps> = ({
     setError('');
     
     try {
-      const address = await web3Service.connectWallet(walletId);
+      if (!window.ethereum) {
+        throw new Error('No wallet found. Please install MetaMask or another Web3 wallet.');
+      }
+
+      // Request account access
+      const accounts = await window.ethereum.request({ 
+        method: 'eth_requestAccounts' 
+      });
+      
+      if (accounts.length === 0) {
+        throw new Error('No accounts found');
+      }
+
+      const address = accounts[0];
+      
+      // Switch to BSC Testnet
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: '0x61' }], // BSC Testnet
+        });
+      } catch (switchError: any) {
+        // This error code indicates that the chain has not been added to MetaMask
+        if (switchError.code === 4902) {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [
+              {
+                chainId: '0x61',
+                chainName: 'BSC Testnet',
+                nativeCurrency: {
+                  name: 'BNB',
+                  symbol: 'BNB',
+                  decimals: 18,
+                },
+                rpcUrls: ['https://data-seed-prebsc-1-s1.binance.org:8545/'],
+                blockExplorerUrls: ['https://testnet.bscscan.com/'],
+              },
+            ],
+          });
+        }
+      }
+
       setConnectedWallet(walletId);
       setWalletAddress(address);
       setShowWalletModal(false);
+      
       console.log('Wallet connected:', walletId, address);
     } catch (err: any) {
       console.error('Wallet connection error:', err);
